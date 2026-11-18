@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Seguridad: solo permite hablar con api.github.com, sin formularios ni frames -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.github.com; img-src https://avatars.githubusercontent.com data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Mis Apps</title>
+<style>
+  :root{--bg:#0b0a1a;--card:rgba(255,255,255,.06);--text:#f5f3ff;--muted:#b4b0d4;--accent:#8b5cf6;--accent2:#ec4899;--border:rgba(255,255,255,.12)}
+  @media (prefers-color-scheme:light){:root{--bg:#f4f1ff;--card:rgba(255,255,255,.85);--text:#1b1740;--muted:#5f5a8a;--border:rgba(90,70,200,.18)}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);min-height:100vh;
+    background:radial-gradient(900px 500px at 10% -10%,rgba(139,92,246,.45),transparent 60%),radial-gradient(800px 500px at 100% 0%,rgba(236,72,153,.35),transparent 60%),radial-gradient(700px 500px at 50% 110%,rgba(59,130,246,.30),transparent 60%),var(--bg);background-attachment:fixed}
+  header{padding:56px 16px 12px;text-align:center}
+  header .badge{display:inline-block;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--muted);margin-bottom:14px}
+  header h1{margin:0 0 10px;font-size:clamp(34px,7vw,56px);font-weight:800;letter-spacing:-1px;background:linear-gradient(90deg,#a78bfa,#f472b6,#fb923c);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:0;color:var(--muted);font-size:17px}
+  .tools{max-width:960px;margin:24px auto 0;padding:0 16px}
+  input{width:100%;padding:14px 18px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;outline:none;backdrop-filter:blur(10px);transition:.2s}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(139,92,246,.25)}
+  main{max-width:960px;margin:0 auto;padding:20px 16px;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px;backdrop-filter:blur(12px);transition:transform .2s,box-shadow .2s,border-color .2s;animation:up .5s both}
+  .card:hover{transform:translateY(-6px);border-color:var(--accent);box-shadow:0 14px 40px rgba(139,92,246,.35)}
+  @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .head{display:flex;align-items:center;gap:12px}
+  .icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;flex:none;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+  .card h2{margin:0;font-size:19px;word-break:break-word}
+  .desc{color:var(--muted);font-size:14px;margin:0;flex:1;line-height:1.5}
+  .meta{font-size:12px;color:var(--muted);display:inline-block;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--border);align-self:flex-start}
+  .btns{display:flex;flex-wrap:wrap;gap:8px}
+  .btn{display:inline-block;padding:10px 16px;border-radius:12px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;text-decoration:none;font-size:14px;font-weight:700;transition:.2s}
+  .btn:hover{filter:brightness(1.12);transform:scale(1.04)}
+  .btn.alt{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .btn.alt:hover{border-color:var(--accent)}
+  .msg{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px}
+  footer{text-align:center;color:var(--muted);font-size:13px;padding:24px 16px 48px}
+</style>
+</head>
+<body>
+<header>
+  <span class="badge">✨ Descarga gratis y segura</span>
+  <h1 id="title">Mis Apps</h1>
+  <p>Tu tienda de apps gratis: elige una y descárgala al instante 🚀</p>
+</header>
+<div class="tools"><input id="q" type="search" placeholder="Buscar app..." autocomplete="off"></div>
+<main id="list"><div class="msg">Cargando apps…</div></main>
+<footer>🔒 Todas las descargas vienen directamente de GitHub.</footer>
+
+<script>
+/* ====== CONFIGURA AQUÍ ====== */
+const CONFIG = {
+  user: "cartuchecajamarcajoelalexander-art",   // tu usuario o organización de GitHub
+  topic: "",                   // vacío = muestra TODOS tus repos públicos. Si pones un topic, solo los que lo tengan.
+  exclude: ["cartuchecajamarcajoelalexander-art.github.io"], // repos que NO quieres mostrar (por ejemplo, el de esta misma página)
+  title: "Mis Apps"
+};
+/* ============================ */
+
+const API = "https://api.github.com";
+const CACHE_MIN = 15; // minutos de caché (evita el límite de 60 peticiones/hora de GitHub)
+const listEl = document.getElementById("list");
+document.getElementById("title").textContent = CONFIG.title;
+document.title = CONFIG.title;
+
+// Solo se aceptan enlaces https hacia github.com (evita enlaces maliciosos)
+function safeGithubUrl(u){
+  try{
+    const x = new URL(u);
+    return x.protocol === "https:" && x.hostname === "github.com" ? x.href : null;
+  }catch(e){ return null; }
+}
+const validName = s => /^[A-Za-z0-9._-]+$/.test(s);
+
+async function gh(path){
+  const key = "ghc:" + path;
+  try{
+    const c = JSON.parse(localStorage.getItem(key) || "null");
+    if(c && Date.now() - c.t < CACHE_MIN*60000) return c.d;
+  }catch(e){}
+  const r = await fetch(API + path, {headers:{Accept:"application/vnd.github+json"}});
+  if(r.status === 404) return null;
+  if(!r.ok) throw new Error("GitHub respondió " + r.status);
+  const d = await r.json();
+  try{ localStorage.setItem(key, JSON.stringify({t:Date.now(), d})); }catch(e){}
+  return d;
+}
+
+function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB"; }
+
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text != null) e.textContent = text;   // textContent: nunca se inyecta HTML
+  return e;
+}
+
+function link(href, label, alt){
+  const a = el("a", "btn" + (alt ? " alt" : ""), label);
+  a.href = href;
+  a.rel = "noopener noreferrer";
+  a.target = "_blank";
+  return a;
+}
+
+function card(repo, rel){
+  const c = el("article", "card");
+  c.dataset.search = (repo.name + " " + (repo.description||"")).toLowerCase();
+  const head = el("div", "head");
+  const hue = [...repo.name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
+  const ic = el("div", "icon", repo.name.charAt(0).toUpperCase());
+  ic.style.background = "linear-gradient(135deg,hsl(" + hue + ",85%,60%),hsl(" + ((hue + 60) % 360) + ",85%,55%))";
+  head.appendChild(ic);
+  head.appendChild(el("h2", null, repo.name));
+  c.appendChild(head);
+  c.appendChild(el("p", "desc", repo.description || "Sin descripción."));
+  const btns = el("div", "btns");
+  let hasDl = false;
+  if(rel){
+    c.appendChild(el("div", "meta", "⭐ Versión " + rel.tag_name + " · " + new Date(rel.published_at).toLocaleDateString("es")));
+    (rel.assets || []).forEach(a => {
+      const u = safeGithubUrl(a.browser_download_url);
+      if(u){ btns.appendChild(link(u, "⬇ Descargar " + a.name + " (" + fmtSize(a.size) + ")")); hasDl = true; }
+    });
+  }
+  if(!hasDl){
+    const z = safeGithubUrl("https://github.com/" + encodeURIComponent(repo.owner.login) + "/" + encodeURIComponent(repo.name) + "/archive/refs/heads/" + encodeURIComponent(repo.default_branch) + ".zip");
+    if(z) btns.appendChild(link(z, "⬇ Descargar código (ZIP)"));
+  }
+  const page = safeGithubUrl(repo.html_url);
+  if(page) btns.appendChild(link(page, "Ver en GitHub", true));
+  c.appendChild(btns);
+  return c;
+}
+
+async function load(){
+  listEl.replaceChildren();
+  try{
+    if(!validName(CONFIG.user) ) throw new Error("Configura tu usuario de GitHub en CONFIG.");
+    const repos = await gh("/users/" + CONFIG.user + "/repos?per_page=100&sort=updated");
+    const apps = (repos || []).filter(r => !r.fork && !r.archived && validName(r.name)
+      && !CONFIG.exclude.includes(r.name)
+      && (!CONFIG.topic || (r.topics || []).includes(CONFIG.topic)));
+    if(!apps.length){ listEl.appendChild(el("div","msg","Aún no hay apps publicadas.")); return; }
+    const rels = await Promise.all(apps.map(r => gh("/repos/" + CONFIG.user + "/" + r.name + "/releases/latest").catch(() => null)));
+    apps.forEach((r, i) => { const c = card(r, rels[i]); c.style.animationDelay = (i * 80) + "ms"; listEl.appendChild(c); });
+  }catch(err){
+    const net = err instanceof TypeError; // "Failed to fetch" = el navegador no pudo conectar con GitHub
+    listEl.appendChild(el("div","msg", net
+      ? "No se pudo conectar con GitHub. Revisa tu internet, desactiva el bloqueador de anuncios o abre esta página desde su enlace público (GitHub Pages)."
+      : "No se pudo cargar: " + err.message));
+  }
+}
+
+document.getElementById("q").addEventListener("input", e => {
+  const t = e.target.value.trim().toLowerCase();
+  listEl.querySelectorAll(".card").forEach(c => c.style.display = c.dataset.search.includes(t) ? "" : "none");
+});
+
+load();
+</script>
+</body>
+</html>
